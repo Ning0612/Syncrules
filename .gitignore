@@ -11,6 +11,10 @@ syncrules-gui
 # Test binary
 *.test
 
+# Test data directories
+/tests/source/
+/tests/target/
+
 # Output of the go coverage tool
 *.out
 coverage.html

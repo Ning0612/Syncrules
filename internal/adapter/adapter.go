@@ -30,7 +30,7 @@ type Adapter interface {
 
 	// Delete removes a file or empty directory
 	// Returns domain.ErrNotFound if path doesn't exist
-	// Use DeleteRecursive for non-empty directories
+	// For non-empty directories, caller must delete contents first
 	Delete(ctx context.Context, path string) error
 
 	// Stat returns metadata for a single path

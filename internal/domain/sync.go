@@ -14,6 +14,15 @@ const (
 	SyncModeTwoWay SyncMode = "two-way"
 )
 
+// IsValid checks if the sync mode is a known value
+func (m SyncMode) IsValid() bool {
+	switch m {
+	case SyncModeOneWayPush, SyncModeOneWayPull, SyncModeTwoWay:
+		return true
+	}
+	return false
+}
+
 // ConflictStrategy defines how to resolve sync conflicts
 type ConflictStrategy string
 
@@ -30,6 +39,15 @@ const (
 	// ConflictManual requires user intervention
 	ConflictManual ConflictStrategy = "manual"
 )
+
+// IsValid checks if the conflict strategy is a known value
+func (s ConflictStrategy) IsValid() bool {
+	switch s {
+	case ConflictKeepLocal, ConflictKeepRemote, ConflictKeepNewest, ConflictManual:
+		return true
+	}
+	return false
+}
 
 // SyncAction represents a single operation in a sync plan
 type SyncAction struct {
