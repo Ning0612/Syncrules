@@ -1,0 +1,89 @@
+package domain
+
+// SyncMode defines how synchronization should occur
+type SyncMode string
+
+const (
+	// SyncModeOneWayPush syncs from source to target only
+	SyncModeOneWayPush SyncMode = "one-way-push"
+
+	// SyncModeOneWayPull syncs from target to source only
+	SyncModeOneWayPull SyncMode = "one-way-pull"
+
+	// SyncModeTwoWay performs bidirectional sync
+	SyncModeTwoWay SyncMode = "two-way"
+)
+
+// ConflictStrategy defines how to resolve sync conflicts
+type ConflictStrategy string
+
+const (
+	// ConflictKeepLocal always keeps the local version
+	ConflictKeepLocal ConflictStrategy = "keep_local"
+
+	// ConflictKeepRemote always keeps the remote version
+	ConflictKeepRemote ConflictStrategy = "keep_remote"
+
+	// ConflictKeepNewest keeps the version with newer mtime
+	ConflictKeepNewest ConflictStrategy = "keep_newest"
+
+	// ConflictManual requires user intervention
+	ConflictManual ConflictStrategy = "manual"
+)
+
+// SyncAction represents a single operation in a sync plan
+type SyncAction struct {
+	// Type of action to perform
+	Type ActionType
+
+	// SourcePath relative path on source endpoint
+	SourcePath string
+
+	// TargetPath relative path on target endpoint
+	TargetPath string
+
+	// SourceInfo file metadata from source (nil for delete)
+	SourceInfo *FileInfo
+
+	// TargetInfo file metadata from target (nil for create)
+	TargetInfo *FileInfo
+
+	// Reason explains why this action was chosen
+	Reason string
+}
+
+// ActionType represents the type of sync action
+type ActionType string
+
+const (
+	ActionCopy    ActionType = "copy"
+	ActionDelete  ActionType = "delete"
+	ActionMkdir   ActionType = "mkdir"
+	ActionConflict ActionType = "conflict"
+	ActionSkip    ActionType = "skip"
+)
+
+// SyncPlan represents a complete plan for synchronization
+type SyncPlan struct {
+	// RuleName identifies which rule generated this plan
+	RuleName string
+
+	// Actions to execute in order
+	Actions []SyncAction
+
+	// Conflicts that require manual resolution
+	Conflicts []SyncAction
+
+	// Stats summary
+	Stats SyncPlanStats
+}
+
+// SyncPlanStats provides summary statistics for a sync plan
+type SyncPlanStats struct {
+	TotalFiles   int
+	FilesToCopy  int
+	FilesToDelete int
+	DirsToCreate int
+	Conflicts    int
+	BytesToSync  int64
+}

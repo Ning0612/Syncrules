@@ -1,0 +1,63 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+syncrules
+syncrules-gui
+/dist/
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*-token.json
+credentials.json
+
+# Logs
+*.log
+logs/
+
+# Fyne build artifacts
+fyne-cross/
+
+# Config with sensitive data (keep examples)
+!configs/example.yaml
+configs/*.yaml
+!configs/*.example.yaml
+
+# Editor config backup
+.editorconfig.bak
