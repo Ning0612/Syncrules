@@ -54,11 +54,11 @@ type SyncAction struct {
 	// Type of action to perform
 	Type ActionType
 
-	// SourcePath relative path on source endpoint
-	SourcePath string
+	// Direction indicates the sync direction for this action
+	Direction SyncDirection
 
-	// TargetPath relative path on target endpoint
-	TargetPath string
+	// Path is the relative path being operated on
+	Path string
 
 	// SourceInfo file metadata from source (nil for delete)
 	SourceInfo *FileInfo
@@ -74,11 +74,21 @@ type SyncAction struct {
 type ActionType string
 
 const (
-	ActionCopy    ActionType = "copy"
-	ActionDelete  ActionType = "delete"
-	ActionMkdir   ActionType = "mkdir"
+	ActionCopy     ActionType = "copy"
+	ActionDelete   ActionType = "delete"
+	ActionMkdir    ActionType = "mkdir"
 	ActionConflict ActionType = "conflict"
-	ActionSkip    ActionType = "skip"
+	ActionSkip     ActionType = "skip"
+)
+
+// SyncDirection indicates the direction of a sync action
+type SyncDirection int
+
+const (
+	// DirSourceToTarget copies from source endpoint to target endpoint
+	DirSourceToTarget SyncDirection = iota
+	// DirTargetToSource copies from target endpoint to source endpoint (reverse)
+	DirTargetToSource
 )
 
 // SyncPlan represents a complete plan for synchronization

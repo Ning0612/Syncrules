@@ -45,6 +45,11 @@ func New(root string) (*Adapter, error) {
 // resolvePath safely resolves a relative path to absolute path within root
 // Returns error if path attempts to escape root directory
 func (a *Adapter) resolvePath(relPath string) (string, error) {
+	// Handle empty path as root
+	if relPath == "" || relPath == "." {
+		return a.root, nil
+	}
+
 	// Normalize path separators
 	relPath = filepath.FromSlash(relPath)
 
@@ -59,8 +64,15 @@ func (a *Adapter) resolvePath(relPath string) (string, error) {
 	// Join with root
 	fullPath := filepath.Join(a.root, relPath)
 
-	// Verify the result is within root (prevent path traversal)
-	if !strings.HasPrefix(fullPath, a.root) {
+	// Use filepath.Rel to safely verify the path is within root
+	// This handles edge cases like root="C:\root" and fullPath="C:\root2"
+	rel, err := filepath.Rel(a.root, fullPath)
+	if err != nil {
+		return "", domain.ErrPermissionDenied
+	}
+
+	// If rel starts with "..", it's outside root
+	if strings.HasPrefix(rel, "..") {
 		return "", domain.ErrPermissionDenied
 	}
 

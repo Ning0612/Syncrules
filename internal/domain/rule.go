@@ -69,8 +69,12 @@ type Transport struct {
 	// Type identifies the backend
 	Type TransportType `mapstructure:"type"`
 
-	// Credentials path for auth (gdrive)
+	// Credentials path for auth (gdrive) - deprecated, use Config["token_path"]
 	Credentials string `mapstructure:"credentials"`
+
+	// Config holds transport-specific configuration
+	// For gdrive: client_id, client_secret, token_path
+	Config map[string]string `mapstructure:"config"`
 }
 
 // Endpoint defines a specific location within a transport

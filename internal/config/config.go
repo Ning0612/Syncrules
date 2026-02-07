@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/Ning0612/Syncrules/internal/domain"
@@ -129,10 +130,16 @@ func (c *Config) GetEnabledRules() []domain.SyncRule {
 func ExpandPath(path string) string {
 	// Expand ~ to home directory
 	if len(path) > 0 && path[0] == '~' {
-		home, err := filepath.Abs("~")
+		home, err := os.UserHomeDir()
 		if err == nil {
-			path = filepath.Join(home, path[1:])
+			if len(path) > 1 && (path[1] == '/' || path[1] == filepath.Separator) {
+				path = filepath.Join(home, path[2:])
+			} else if len(path) == 1 {
+				path = home
+			}
 		}
 	}
+	// Expand environment variables
+	path = os.ExpandEnv(path)
 	return filepath.Clean(path)
 }
