@@ -25,6 +25,9 @@ type Config struct {
 
 	// Scheduler defines global scheduler configuration
 	Scheduler SchedulerConfig `mapstructure:"scheduler"`
+
+	// Logging defines logging configuration
+	Logging LoggingConfig `mapstructure:"logging"`
 }
 
 // Settings contains global configuration options
@@ -52,6 +55,54 @@ type SchedulerConfig struct {
 
 	// DefaultInterval is the default sync interval (e.g., "5m", "1h")
 	DefaultInterval string `mapstructure:"default_interval"`
+}
+
+// LoggingConfig contains logging configuration
+type LoggingConfig struct {
+	// Level specifies the minimum log level ("debug", "info", "warn", "error")
+	Level string `mapstructure:"level"`
+
+	// Format specifies the log format ("text" or "json")
+	Format string `mapstructure:"format"`
+
+	// File contains file logging configuration
+	File LogFileConfig `mapstructure:"file"`
+
+	// Daemon contains daemon-specific logging configuration
+	Daemon DaemonLoggingConfig `mapstructure:"daemon"`
+}
+
+// LogFileConfig contains file logging configuration
+type LogFileConfig struct {
+	// Enabled enables file logging
+	Enabled bool `mapstructure:"enabled"`
+
+	// Path specifies the log file path
+	Path string `mapstructure:"path"`
+
+	// MaxSizeMB specifies the maximum size in MB before rotation
+	MaxSizeMB int `mapstructure:"max_size"`
+
+	// MaxAgeDays specifies the maximum age in days to retain old log files
+	MaxAgeDays int `mapstructure:"max_age"`
+
+	// MaxBackups specifies the maximum number of old log files to retain
+	MaxBackups int `mapstructure:"max_backups"`
+
+	// Compress enables compression of rotated log files
+	Compress bool `mapstructure:"compress"`
+}
+
+// DaemonLoggingConfig contains daemon-specific logging configuration
+type DaemonLoggingConfig struct {
+	// Enabled enables separate daemon logging
+	Enabled bool `mapstructure:"enabled"`
+
+	// Level specifies the log level for daemon (can differ from main level)
+	Level string `mapstructure:"level"`
+
+	// FilePath specifies the daemon log file path
+	FilePath string `mapstructure:"file_path"`
 }
 
 // Validate checks if the configuration is complete and consistent
@@ -137,6 +188,38 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// ApplyDefaults applies default values to the configuration
+func (c *Config) ApplyDefaults() {
+	// Logging defaults
+	if c.Logging.Level == "" {
+		c.Logging.Level = "info"
+	}
+	if c.Logging.Format == "" {
+		c.Logging.Format = "text"
+	}
+
+	// File logging defaults
+	if c.Logging.File.Enabled {
+		if c.Logging.File.MaxSizeMB == 0 {
+			c.Logging.File.MaxSizeMB = 100
+		}
+		if c.Logging.File.MaxAgeDays == 0 {
+			c.Logging.File.MaxAgeDays = 30
+		}
+		if c.Logging.File.MaxBackups == 0 {
+			c.Logging.File.MaxBackups = 5
+		}
+		// Compress is false by default,保持原值
+	}
+
+	// Daemon logging defaults
+	if c.Logging.Daemon.Enabled {
+		if c.Logging.Daemon.Level == "" {
+			c.Logging.Daemon.Level = c.Logging.Level // 與主配置相同
+		}
+	}
 }
 
 // GetTransport returns a transport by name
@@ -233,4 +316,34 @@ func (c *Config) GetLockPath() string {
 		return filepath.Join(".", ".syncrules", "locks")
 	}
 	return filepath.Join(configDir, "syncrules", "locks")
+}
+
+// GetLogPath returns the log file path, using default if not configured
+func (c *Config) GetLogPath() string {
+	if c.Logging.File.Path != "" {
+		return ExpandPath(c.Logging.File.Path)
+	}
+
+	// Default to ~/.config/syncrules/logs/syncrules.log
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		// Fallback to current directory if UserConfigDir fails
+		return filepath.Join(".", ".syncrules", "logs", "syncrules.log")
+	}
+	return filepath.Join(configDir, "syncrules", "logs", "syncrules.log")
+}
+
+// GetDaemonLogPath returns the daemon log file path, using default if not configured
+func (c *Config) GetDaemonLogPath() string {
+	if c.Logging.Daemon.FilePath != "" {
+		return ExpandPath(c.Logging.Daemon.FilePath)
+	}
+
+	// Default to ~/.config/syncrules/logs/daemon.log
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		// Fallback to current directory if UserConfigDir fails
+		return filepath.Join(".", ".syncrules", "logs", "daemon.log")
+	}
+	return filepath.Join(configDir, "syncrules", "logs", "daemon.log")
 }

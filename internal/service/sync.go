@@ -12,6 +12,7 @@ import (
 	"github.com/Ning0612/Syncrules/internal/core/rule"
 	"github.com/Ning0612/Syncrules/internal/domain"
 	"github.com/Ning0612/Syncrules/internal/lock"
+	"github.com/Ning0612/Syncrules/internal/logger"
 	"github.com/Ning0612/Syncrules/internal/progress"
 )
 
@@ -130,32 +131,68 @@ func (s *SyncService) getAdapter(endpointName string) (adapter.Adapter, error) {
 
 // PlanSync creates a sync plan for a rule without executing it
 func (s *SyncService) PlanSync(ctx context.Context, ruleName string) (*domain.SyncPlan, error) {
+	logger.Get().Debug("planning sync", "rule", ruleName)
+
 	rule, err := s.config.GetRule(ruleName)
 	if err != nil {
+		logger.Get().Error("failed to get rule", "rule", ruleName, "error", err)
 		return nil, err
 	}
 
 	sourceAdapter, err := s.getAdapter(rule.SourceEndpoint)
 	if err != nil {
+		logger.Get().Error("failed to get source adapter",
+			"rule", ruleName,
+			"endpoint", rule.SourceEndpoint,
+			"error", err,
+		)
 		return nil, fmt.Errorf("source endpoint: %w", err)
 	}
 
 	targetAdapter, err := s.getAdapter(rule.TargetEndpoint)
 	if err != nil {
+		logger.Get().Error("failed to get target adapter",
+			"rule", ruleName,
+			"endpoint", rule.TargetEndpoint,
+			"error", err,
+		)
 		return nil, fmt.Errorf("target endpoint: %w", err)
 	}
 
+	logger.Get().Debug("delegating to executor", "rule", ruleName)
+
 	// Delegate to core/rule executor
-	return s.executor.Plan(ctx, rule, sourceAdapter, targetAdapter)
+	plan, err := s.executor.Plan(ctx, rule, sourceAdapter, targetAdapter)
+	if err != nil {
+		logger.Get().Error("executor plan failed", "rule", ruleName, "error", err)
+		return nil, err
+	}
+
+	logger.Get().Info("sync plan created",
+		"rule", ruleName,
+		"files_to_copy", plan.Stats.FilesToCopy,
+		"files_to_delete", plan.Stats.FilesToDelete,
+		"bytes_to_sync", plan.Stats.BytesToSync,
+	)
+
+	return plan, nil
 }
 
 // ExecuteSync executes a sync plan
 func (s *SyncService) ExecuteSync(ctx context.Context, plan *domain.SyncPlan) error {
+	logger.Get().Debug("executing sync", "rule", plan.RuleName)
+
 	// Acquire lock before executing sync
+	logger.Get().Info("acquiring lock", "rule", plan.RuleName)
 	if err := s.lock.Acquire(plan.RuleName); err != nil {
+		logger.Get().Error("failed to acquire sync lock", "rule", plan.RuleName, "error", err)
 		return fmt.Errorf("failed to acquire sync lock: %w", err)
 	}
-	defer s.lock.Release()
+	defer func() {
+		if err := s.lock.Release(); err != nil {
+			logger.Get().Error("failed to release sync lock", "rule", plan.RuleName, "error", err)
+		}
+	}()
 
 	rule, err := s.config.GetRule(plan.RuleName)
 	if err != nil {
@@ -200,8 +237,20 @@ func (s *SyncService) ExecuteSync(ctx context.Context, plan *domain.SyncPlan) er
 				bytesCompleted += action.TargetInfo.Size
 			}
 			reporter.OverallProgress(filesCompleted, bytesCompleted)
+
+			logger.Get().Debug("action executed",
+				"rule", plan.RuleName,
+				"action", action.Type,
+				"path", action.Path,
+			)
 		}
 	}
+
+	logger.Get().Info("sync execution completed",
+		"rule", plan.RuleName,
+		"files_synced", filesCompleted,
+		"bytes_synced", bytesCompleted,
+	)
 
 	return nil
 }
