@@ -73,6 +73,9 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
+	// Apply defaults
+	cfg.ApplyDefaults()
+
 	// Validate the configuration
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -103,6 +106,9 @@ func LoadFromString(yamlContent string) (*Config, error) {
 		// Default to enabled
 		cfg.Rules[i].Enabled = true
 	}
+
+	// Apply defaults
+	cfg.ApplyDefaults()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
