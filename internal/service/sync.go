@@ -26,7 +26,12 @@ type SyncService struct {
 
 // NewSyncService creates a new sync service
 func NewSyncService(cfg *config.Config) (*SyncService, error) {
-	fileLock, err := lock.NewFileLock("")
+	if cfg == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
+	lockPath := cfg.GetLockPath()
+	fileLock, err := lock.NewFileLock(lockPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file lock: %w", err)
 	}

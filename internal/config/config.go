@@ -18,6 +18,27 @@ type Config struct {
 
 	// Rules define synchronization relationships
 	Rules []domain.SyncRule `mapstructure:"rules"`
+
+	// Settings define global configuration options
+	Settings Settings `mapstructure:"settings"`
+}
+
+// Settings contains global configuration options
+type Settings struct {
+	// LockPath specifies the directory for lock files (default: ~/.config/syncrules/locks)
+	LockPath string `mapstructure:"lock_path"`
+
+	// DefaultConflict is the default conflict resolution strategy
+	DefaultConflict string `mapstructure:"default_conflict"`
+
+	// ChecksumAlgorithm specifies which algorithm to use (md5, sha256)
+	ChecksumAlgorithm string `mapstructure:"checksum_algorithm"`
+
+	// Verbose enables verbose logging
+	Verbose bool `mapstructure:"verbose"`
+
+	// DryRun enables dry-run mode by default
+	DryRun bool `mapstructure:"dry_run"`
 }
 
 // Validate checks if the configuration is complete and consistent
@@ -142,4 +163,19 @@ func ExpandPath(path string) string {
 	// Expand environment variables
 	path = os.ExpandEnv(path)
 	return filepath.Clean(path)
+}
+
+// GetLockPath returns the lock directory path, using default if not configured
+func (c *Config) GetLockPath() string {
+	if c.Settings.LockPath != "" {
+		return ExpandPath(c.Settings.LockPath)
+	}
+
+	// Default to ~/.config/syncrules/locks
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		// Fallback to current directory if UserConfigDir fails
+		return filepath.Join(".", ".syncrules", "locks")
+	}
+	return filepath.Join(configDir, "syncrules", "locks")
 }
