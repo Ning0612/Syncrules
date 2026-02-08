@@ -208,7 +208,117 @@ rules:
 
 ## 自動化排程
 
-### Linux / macOS (cron)
+### 方式一：使用內建 Daemon（推薦）
+
+Syncrules 提供內建的排程守護程序，支援規則層級的排程配置：
+
+```yaml
+# 設定檔範例
+scheduler:
+  enabled: true
+  default_interval: "1h"  # 全域預設間隔
+
+rules:
+  - name: critical-backup
+    source: important-docs
+    target: backup
+    schedule:
+      enabled: true
+      interval: "5m"  # 每 5 分鐘同步
+
+  - name: archive-sync
+    source: archives
+    target: cloud-backup
+    schedule:
+      enabled: true
+      interval: "6h"  # 每 6 小時同步
+```
+
+#### 啟動守護程序
+
+```bash
+# 背景執行（推薦）
+syncrules daemon start --detach
+
+# 檢查狀態
+syncrules daemon status
+
+# 停止
+syncrules daemon stop
+
+# 前景模式（用於測試）
+syncrules daemon start --interval 1m
+```
+
+#### 系統服務整合
+
+**systemd (Linux)**：
+
+```ini
+# /etc/systemd/system/syncrules.service
+[Unit]
+Description=Syncrules Daemon
+After=network.target
+
+[Service]
+Type=forking
+User=your-user
+ExecStart=/usr/local/bin/syncrules daemon start --detach
+ExecStop=/usr/local/bin/syncrules daemon stop
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+啟用自動啟動：
+```bash
+sudo systemctl enable syncrules
+sudo systemctl start syncrules
+sudo systemctl status syncrules
+```
+
+**launchd (macOS)**：
+
+```xml
+<!-- ~/Library/LaunchAgents/com.syncrules.daemon.plist -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" 
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.syncrules.daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/syncrules</string>
+        <string>daemon</string>
+        <string>start</string>
+        <string>--detach</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+```
+
+載入服務：
+```bash
+launchctl load ~/Library/LaunchAgents/com.syncrules.daemon.plist
+launchctl start com.syncrules.daemon
+```
+
+更多詳情請參閱 [Daemon 使用指南](daemon-usage.md)。
+
+---
+
+### 方式二：使用系統排程器（傳統方式）
+
+如果您不想使用內建 daemon，也可以使用系統排程器：
+
+#### Linux / macOS (cron)
 
 ```bash
 # 每小時執行一次同步
@@ -218,7 +328,7 @@ crontab -e
 0 * * * * /usr/local/bin/syncrules sync --config ~/.config/syncrules/config.yaml 2>&1 >> ~/.config/syncrules/sync.log
 ```
 
-### Windows (Task Scheduler)
+#### Windows (Task Scheduler)
 
 1. 開啟「工作排程器」
 2. 建立基本工作
@@ -226,38 +336,6 @@ crontab -e
 4. 動作：啟動程式
    - 程式/指令碼：`C:\path\to\syncrules.exe`
    - 引數：`sync --config C:\Users\user\.config\syncrules\config.yaml`
-
-### systemd (Linux)
-
-建立 timer unit：
-
-```ini
-# ~/.config/systemd/user/syncrules.timer
-[Unit]
-Description=Syncrules periodic sync
-
-[Timer]
-OnCalendar=hourly
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-```
-
-```ini
-# ~/.config/systemd/user/syncrules.service
-[Unit]
-Description=Syncrules sync
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/syncrules sync
-```
-
-啟用：
-```bash
-systemctl --user enable --now syncrules.timer
-```
 
 ---
 
@@ -283,7 +361,19 @@ Syncrules 會自動偵測並清除以下陳舊鎖：
 
 > **警告**：手動刪除鎖檔前，請務必確認沒有其他同步程序正在執行。如果持有者仍在運行，刪除鎖檔可能導致多個同步操作同時執行。
 
-#### 2. Google Drive Token 過期
+#### 2. Daemon 無法啟動
+
+```bash
+# 檢查配置是否啟用 scheduler
+syncrules daemon status
+
+# 確認配置檔中有：
+# scheduler:
+#   enabled: true
+#   default_interval: "5m"
+```
+
+#### 3. Google Drive Token 過期
 
 ```bash
 # 重新認證
@@ -292,14 +382,14 @@ syncrules auth gdrive --client-id YOUR_ID --client-secret YOUR_SECRET
 
 Syncrules 會自動使用 Refresh Token 更新過期的 Access Token。如果 Refresh Token 也過期，需要重新認證。
 
-#### 3. 權限問題
+#### 4. 權限問題
 
 確認：
 - 本地目錄有讀寫權限
 - Google Drive API 已啟用
 - OAuth scope 包含檔案存取權限
 
-#### 4. 路徑不存在
+#### 5. 路徑不存在
 
 本地 Adapter 要求 root 路徑在建立時已存在。如果目錄不存在：
 
@@ -315,3 +405,4 @@ mkdir -p /path/to/sync/root
 2. **不提交機密**：`.gitignore` 已排除 `*-token.json` 和 `.env`
 3. **最小權限**：Google Drive API 使用 `drive.file` scope（僅存取應用建立的檔案）
 4. **設定檔敏感資料**：`configs/*.yaml` 已被 `.gitignore` 排除，僅保留 `example.yaml`
+5. **PID 檔案安全**：Daemon PID 檔案儲存在使用者目錄，防止權限問題
