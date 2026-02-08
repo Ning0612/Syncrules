@@ -490,9 +490,39 @@ func TestShouldIgnore_ComplexPatterns(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := shouldIgnore(tt.path, patterns)
+		result := ShouldIgnore(tt.path, patterns)
 		if result != tt.should {
-			t.Errorf("shouldIgnore(%q, patterns) = %v, want %v", tt.path, result, tt.should)
+			t.Errorf("ShouldIgnore(%q, patterns) = %v, want %v", tt.path, result, tt.should)
+		}
+	}
+}
+
+func TestShouldIgnore_DirectoryRecursion(t *testing.T) {
+	patterns := []string{".system", ".cache/", "node_modules", "*.log", "temp/*"}
+
+	tests := []struct {
+		path   string
+		should bool
+	}{
+		{".system", true},
+		{".system/config", true},
+		{".system/sub/dir", true},
+		{".system\\back\\slash", true},
+		{".cache", true},
+		{".cache/file", true},
+		{"node_modules/package.json", true},
+		{"src/node_modules/lib.js", true},
+		{"app.log", true},
+		{"logs/error.log", true},
+		{"temp/test.txt", true},
+		{"normal.txt", false},
+		{"src/main.go", false},
+	}
+
+	for _, tt := range tests {
+		result := ShouldIgnore(tt.path, patterns)
+		if result != tt.should {
+			t.Errorf("ShouldIgnore(%q, patterns) = %v, want %v", tt.path, result, tt.should)
 		}
 	}
 }

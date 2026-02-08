@@ -31,13 +31,13 @@ func NewDefaultExecutor() *DefaultExecutor {
 // This is the core orchestration logic migrated from service.PlanSync
 func (e *DefaultExecutor) Plan(ctx context.Context, rule *domain.SyncRule, sourceAdapter, targetAdapter adapter.Adapter) (*domain.SyncPlan, error) {
 	// List source files
-	sourceFiles, err := listAllFiles(ctx, sourceAdapter, "")
+	sourceFiles, err := listAllFiles(ctx, sourceAdapter, "", rule.IgnorePatterns)
 	if err != nil {
 		return nil, fmt.Errorf("listing source files: %w", err)
 	}
 
 	// List target files
-	targetFiles, err := listAllFiles(ctx, targetAdapter, "")
+	targetFiles, err := listAllFiles(ctx, targetAdapter, "", rule.IgnorePatterns)
 	if err != nil {
 		return nil, fmt.Errorf("listing target files: %w", err)
 	}
@@ -74,7 +74,7 @@ func (e *DefaultExecutor) Plan(ctx context.Context, rule *domain.SyncRule, sourc
 
 // listAllFiles recursively lists all files from an adapter
 // Migrated from service/sync.go line 499-527
-func listAllFiles(ctx context.Context, adp adapter.Adapter, prefix string) ([]domain.FileInfo, error) {
+func listAllFiles(ctx context.Context, adp adapter.Adapter, prefix string, ignorePatterns []string) ([]domain.FileInfo, error) {
 	var allFiles []domain.FileInfo
 
 	items, err := adp.List(ctx, prefix)
@@ -90,9 +90,14 @@ func listAllFiles(ctx context.Context, adp adapter.Adapter, prefix string) ([]do
 		default:
 		}
 
+		// Skip ignored files and directories
+		if planner.ShouldIgnore(item.Path, ignorePatterns) {
+			continue
+		}
+
 		if item.IsDir() {
 			allFiles = append(allFiles, item)
-			subFiles, err := listAllFiles(ctx, adp, item.Path)
+			subFiles, err := listAllFiles(ctx, adp, item.Path, ignorePatterns)
 			if err != nil {
 				return nil, err
 			}

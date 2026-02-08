@@ -399,7 +399,7 @@ func TestListAllFiles_ContextCancellation(t *testing.T) {
 
 	// listAllFiles should respect context cancellation
 	// Note: with small dataset, may complete before cancellation is checked
-	_, err := listAllFiles(ctx, adapter, "")
+	_, err := listAllFiles(ctx, adapter, "", []string{})
 
 	// Could be either nil (completed fast) or context.Canceled
 	if err != nil && err != context.Canceled {

@@ -41,7 +41,7 @@ func (p *DefaultPlanner) PlanOneWay(fromMap, toMap map[string]domain.FileInfo, r
 
 	// Files to copy: in "from" but not in "to", or different
 	for path, fromInfo := range fromMap {
-		if shouldIgnore(path, rule.IgnorePatterns) {
+		if ShouldIgnore(path, rule.IgnorePatterns) {
 			continue
 		}
 
@@ -95,7 +95,7 @@ func (p *DefaultPlanner) PlanOneWay(fromMap, toMap map[string]domain.FileInfo, r
 
 	// Files to delete: in "to" but not in "from"
 	for path, toInfo := range toMap {
-		if shouldIgnore(path, rule.IgnorePatterns) {
+		if ShouldIgnore(path, rule.IgnorePatterns) {
 			continue
 		}
 
@@ -135,7 +135,7 @@ func (p *DefaultPlanner) PlanTwoWay(sourceMap, targetMap map[string]domain.FileI
 	}
 
 	for path := range allPaths {
-		if shouldIgnore(path, rule.IgnorePatterns) {
+		if ShouldIgnore(path, rule.IgnorePatterns) {
 			continue
 		}
 
@@ -267,17 +267,67 @@ func actionTypeOrder(t domain.ActionType) int {
 	}
 }
 
-// shouldIgnore checks if a path matches any ignore pattern
+// ShouldIgnore checks if a path matches any ignore pattern
 // Migrated from service/sync.go line 530-541
-func shouldIgnore(path string, patterns []string) bool {
+func ShouldIgnore(path string, patterns []string) bool {
+	if len(patterns) == 0 {
+		return false
+	}
+
+	// Normalize path to use / for consistent matching
+	normalizedPath := filepath.ToSlash(path)
+	parts := strings.Split(normalizedPath, "/")
+
 	for _, pattern := range patterns {
-		matched, err := filepath.Match(pattern, filepath.Base(path))
+		normalizedPattern := filepath.ToSlash(pattern)
+		// Remove trailing slash for directory matching
+		trimmedPattern := strings.TrimSuffix(normalizedPattern, "/")
+
+		// Case 1: Match against the full path
+		matched, err := filepath.Match(normalizedPattern, normalizedPath)
 		if err == nil && matched {
 			return true
 		}
-		matched, err = filepath.Match(pattern, path)
-		if err == nil && matched {
-			return true
+
+		// Case 2: Match against the trimmed full path (handles directory patterns with trailing slash)
+		if normalizedPattern != trimmedPattern {
+			matched, err = filepath.Match(trimmedPattern, normalizedPath)
+			if err == nil && matched {
+				return true
+			}
+		}
+
+		// Case 3: Match against any component of the path (e.g., "node_modules", "*.tmp")
+		for _, part := range parts {
+			matched, err = filepath.Match(normalizedPattern, part)
+			if err == nil && matched {
+				return true
+			}
+			if normalizedPattern != trimmedPattern {
+				matched, err = filepath.Match(trimmedPattern, part)
+				if err == nil && matched {
+					return true
+				}
+			}
+		}
+
+		// Case 4: Match against any prefix of the path (e.g., if ".system" is ignored, ".system/config" is ignored)
+		currentPrefix := ""
+		for i, part := range parts {
+			if i > 0 {
+				currentPrefix += "/"
+			}
+			currentPrefix += part
+			matched, err = filepath.Match(normalizedPattern, currentPrefix)
+			if err == nil && matched {
+				return true
+			}
+			if normalizedPattern != trimmedPattern {
+				matched, err = filepath.Match(trimmedPattern, currentPrefix)
+				if err == nil && matched {
+					return true
+				}
+			}
 		}
 	}
 	return false
