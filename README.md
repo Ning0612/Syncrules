@@ -6,9 +6,11 @@ Syncrules 提供單一事實來源（Single Source of Truth），讓設定檔、
 
 ## 功能特色
 
+- **排程同步** — 定時自動同步，支援後台守護程序
 - **多種同步模式** — 單向推送、單向拉取、雙向同步
 - **多儲存後端** — 本地檔案系統、Google Drive（可擴充）
 - **規則式管理** — 透過 YAML 定義同步規則，Git 可追蹤
+- **彈性排程** — 全域預設或個別規則自訂同步間隔
 - **衝突解決** — keep_local / keep_remote / keep_newest / manual 四種策略
 - **安全同步** — 檔案鎖防止並行操作、原子寫入防止部分覆寫
 - **Dry-run 預覽** — 執行前預覽所有變更
@@ -39,6 +41,11 @@ cp configs/example.yaml ~/.config/syncrules/config.yaml
 編輯 `config.yaml`：
 
 ```yaml
+# 啟用排程器（可選）
+scheduler:
+  enabled: true
+  default_interval: "5m"  # 每 5 分鐘同步一次
+
 transports:
   - name: local
     type: local
@@ -56,6 +63,9 @@ rules:
     mode: one-way-push
     source: source
     target: backup
+    schedule:
+      enabled: true       # 包含在排程同步中
+      interval: "10m"     # 覆寫預設間隔（可選）
     ignore:
       - "*.log"
       - ".cache/"
@@ -104,6 +114,8 @@ Transport（儲存後端）
 
 ## 命令列
 
+### 手動同步
+
 ```bash
 syncrules sync [flags]       # 執行同步
 syncrules auth gdrive [flags] # Google Drive 認證
@@ -118,11 +130,33 @@ syncrules version            # 顯示版本
 | `--output, -o` | 輸出格式（table/json） |
 | `--progress, -p` | 顯示進度 |
 
+### 排程守護程序
+
+```bash
+# 啟動守護程序（背景執行）
+syncrules daemon start --detach
+
+# 檢查狀態
+syncrules daemon status
+
+# 停止守護程序
+syncrules daemon stop
+
+# 前景模式（測試用）
+syncrules daemon start --interval 1m
+```
+
+更多詳情請參閱 [Daemon 使用指南](docs/daemon-usage.md)
+
 ## 技術架構
 
 ```
 CLI (Cobra)
   └── Service (編排層)
+        ├── Daemon Service   — 排程守護程序
+        │   ├── Scheduler     — 定時排程器
+        │   ├── State Manager — 同步狀態追蹤（SQLite）
+        │   └── PID Manager   — 程序管理（跨平台）
         ├── Core (業務邏輯)
         │   ├── Rule Executor  — 規則執行
         │   ├── Planner        — 計畫生成
@@ -133,7 +167,7 @@ CLI (Cobra)
             └── Google Drive
 ```
 
-**技術選型**：Go + Cobra + Viper + Google Drive API v3
+**技術選型**：Go + Cobra + Viper + SQLite + Google Drive API v3
 
 > GUI（Fyne 框架）目前規劃中，尚未實作。
 
@@ -141,6 +175,8 @@ CLI (Cobra)
 
 | 文件 | 說明 |
 |------|------|
+| [Daemon 使用指南](docs/daemon-usage.md) | 守護程序使用、排程配置、系統服務整合 |
+| [配置範例](docs/config-examples.md) | 各種排程模式與配置範例 |
 | [架構文件](docs/architecture.md) | 系統架構、模組設計、資料流 |
 | [開發指南](docs/development.md) | 開發環境、程式碼規範、測試策略 |
 | [部署指南](docs/deployment.md) | 建置、安裝、設定、自動化排程 |
