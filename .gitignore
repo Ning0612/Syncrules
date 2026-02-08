@@ -71,3 +71,4 @@ configs/*.yaml
 
 # AI-generated files
 CLAUDE.md
+.claude/

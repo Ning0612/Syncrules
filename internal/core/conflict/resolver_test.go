@@ -143,3 +143,119 @@ func TestResolve_NilInfo(t *testing.T) {
 		t.Errorf("Expected nil info reason, got %v", action.Reason)
 	}
 }
+
+// Phase 2: Checksum-based conflict resolution tests
+
+func TestResolve_KeepNewest_ChecksumMatch(t *testing.T) {
+	resolver := NewDefaultResolver()
+	now := time.Now()
+
+	src := &domain.FileInfo{
+		Path:     "test.txt",
+		Size:     100,
+		ModTime:  now,
+		Checksum: "abc123",
+	}
+	tgt := &domain.FileInfo{
+		Path:     "test.txt",
+		Size:     100,
+		ModTime:  now.Add(time.Hour), // Different time
+		Checksum: "abc123",           // Same checksum
+	}
+
+	action := resolver.Resolve(domain.ConflictKeepNewest, "test.txt", src, tgt)
+
+	if action.Type != domain.ActionSkip {
+		t.Errorf("Expected ActionSkip when checksums match, got %v", action.Type)
+	}
+	if action.Reason != "identical content (checksum match)" {
+		t.Errorf("Expected checksum match reason, got %v", action.Reason)
+	}
+}
+
+func TestResolve_KeepNewest_ChecksumDiffer_SourceNewer(t *testing.T) {
+	resolver := NewDefaultResolver()
+	now := time.Now()
+
+	src := &domain.FileInfo{
+		Path:     "test.txt",
+		Size:     100,
+		ModTime:  now.Add(time.Hour), // Newer
+		Checksum: "abc123",
+	}
+	tgt := &domain.FileInfo{
+		Path:     "test.txt",
+		Size:     100,
+		ModTime:  now,
+		Checksum: "def456", // Different checksum
+	}
+
+	action := resolver.Resolve(domain.ConflictKeepNewest, "test.txt", src, tgt)
+
+	// Should fall back to time-based resolution
+	if action.Type != domain.ActionCopy {
+		t.Errorf("Expected ActionCopy when checksums differ and source is newer, got %v", action.Type)
+	}
+	if action.Direction != domain.DirSourceToTarget {
+		t.Errorf("Expected DirSourceToTarget, got %v", action.Direction)
+	}
+	if action.Reason != "source is newer" {
+		t.Errorf("Expected 'source is newer' reason, got %v", action.Reason)
+	}
+}
+
+func TestResolve_KeepNewest_NoChecksum(t *testing.T) {
+	resolver := NewDefaultResolver()
+	now := time.Now()
+
+	src := &domain.FileInfo{
+		Path:     "test.txt",
+		Size:     100,
+		ModTime:  now.Add(time.Hour),
+		Checksum: "", // No checksum
+	}
+	tgt := &domain.FileInfo{
+		Path:     "test.txt",
+		Size:     100,
+		ModTime:  now,
+		Checksum: "", // No checksum
+	}
+
+	action := resolver.Resolve(domain.ConflictKeepNewest, "test.txt", src, tgt)
+
+	// Should use time-based resolution
+	if action.Type != domain.ActionCopy {
+		t.Errorf("Expected ActionCopy when no checksums available, got %v", action.Type)
+	}
+	if action.Reason != "source is newer" {
+		t.Errorf("Expected time-based reason, got %v", action.Reason)
+	}
+}
+
+func TestResolve_KeepNewest_OnlyOneHasChecksum(t *testing.T) {
+	resolver := NewDefaultResolver()
+	now := time.Now()
+
+	src := &domain.FileInfo{
+		Path:     "test.txt",
+		Size:     100,
+		ModTime:  now.Add(time.Hour),
+		Checksum: "abc123", // Has checksum
+	}
+	tgt := &domain.FileInfo{
+		Path:     "test.txt",
+		Size:     100,
+		ModTime:  now,
+		Checksum: "", // No checksum
+	}
+
+	action := resolver.Resolve(domain.ConflictKeepNewest, "test.txt", src, tgt)
+
+	// Should fall back to time-based resolution when only one has checksum
+	if action.Type != domain.ActionCopy {
+		t.Errorf("Expected ActionCopy when only one file has checksum, got %v", action.Type)
+	}
+	if action.Reason != "source is newer" {
+		t.Errorf("Expected time-based reason, got %v", action.Reason)
+	}
+}

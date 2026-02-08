@@ -56,6 +56,21 @@ func (r *DefaultResolver) Resolve(strategy domain.ConflictStrategy, path string,
 		}
 
 	case domain.ConflictKeepNewest:
+		// Phase 2: Priority check - if both have checksums and they match, skip sync
+		if src.Checksum != "" && tgt.Checksum != "" {
+			if src.Checksum == tgt.Checksum {
+				return domain.SyncAction{
+					Type:       domain.ActionSkip,
+					Direction:  domain.DirSourceToTarget,
+					Path:       path,
+					SourceInfo: src,
+					TargetInfo: tgt,
+					Reason:     "identical content (checksum match)",
+				}
+			}
+			// Checksums differ - continue with time-based resolution
+		}
+
 		// Compare modification times
 		if src.ModTime.After(tgt.ModTime) {
 			// Source is newer

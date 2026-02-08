@@ -65,6 +65,27 @@ func (c *DefaultComparer) Compare(src, tgt *domain.FileInfo) DiffResult {
 		// Size same, check mtime
 		// Use ModTime.Equal() to handle platform-specific precision
 		if !src.ModTime.Equal(tgt.ModTime) {
+			// Phase 2: If both have checksums, use content comparison
+			if src.Checksum != "" && tgt.Checksum != "" {
+				if src.Checksum == tgt.Checksum {
+					// Content is identical despite different mtime
+					return FilesIdentical
+				}
+				// Checksums differ - content is different
+				return FileModified
+			}
+
+			// No checksums available (e.g., large files exceeding MaxSize)
+			// For large files, if size matches, assume content is identical
+			// Rationale: Large files rarely have same size but different content
+			// This prevents unnecessary copying of large files
+			if src.Checksum == "" && tgt.Checksum == "" {
+				// Both lack checksums - use size as heuristic
+				// Size already matched (we're in the "size same" branch)
+				return FilesIdentical
+			}
+
+			// Only one has checksum - fall back to conservative strategy
 			// If source is newer, it's modified
 			if src.ModTime.After(tgt.ModTime) {
 				return FileModified

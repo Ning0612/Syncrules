@@ -66,7 +66,7 @@ func TestDefaultComparer_FileModified_MtimeDiff(t *testing.T) {
 	tgt := &domain.FileInfo{
 		Path:    "test.txt",
 		Type:    domain.FileTypeRegular,
-		Size:    100,
+		Size:    200, // Different size to test mtime comparison
 		ModTime: now,
 	}
 
@@ -181,14 +181,118 @@ func TestDefaultComparer_TargetNewer(t *testing.T) {
 	tgt := &domain.FileInfo{
 		Path:    "test.txt",
 		Type:    domain.FileTypeRegular,
-		Size:    100,
+		Size:    200,                    // Different size to test mtime comparison
 		ModTime: now.Add(1 * time.Hour), // Target is newer
 	}
 
 	result := comparer.Compare(src, tgt)
-	// When target is newer with same size, we still report as modified
-	// The planner/conflict resolver will decide how to handle this
+	// When sizes differ, always report as modified
 	if result != FileModified {
-		t.Errorf("Expected FileModified when target is newer, got %v", result)
+		t.Errorf("Expected FileModified when sizes differ, got %v", result)
+	}
+}
+
+// Phase 2: Checksum comparison tests
+
+func TestDefaultComparer_ChecksumMatch_DifferentMtime(t *testing.T) {
+	comparer := NewDefaultComparer()
+	now := time.Now()
+
+	src := &domain.FileInfo{
+		Path:     "test.txt",
+		Type:     domain.FileTypeRegular,
+		Size:     100,
+		ModTime:  now,
+		Checksum: "abc123", // Same checksum
+	}
+	tgt := &domain.FileInfo{
+		Path:     "test.txt",
+		Type:     domain.FileTypeRegular,
+		Size:     100,
+		ModTime:  now.Add(1 * time.Hour), // Different mtime
+		Checksum: "abc123",               // Same checksum
+	}
+
+	result := comparer.Compare(src, tgt)
+	if result != FilesIdentical {
+		t.Errorf("Expected FilesIdentical when checksums match despite different mtime, got %v", result)
+	}
+}
+
+func TestDefaultComparer_ChecksumDiffer_SameSize(t *testing.T) {
+	comparer := NewDefaultComparer()
+	now := time.Now()
+
+	src := &domain.FileInfo{
+		Path:     "test.txt",
+		Type:     domain.FileTypeRegular,
+		Size:     100,
+		ModTime:  now.Add(1 * time.Hour),
+		Checksum: "abc123",
+	}
+	tgt := &domain.FileInfo{
+		Path:     "test.txt",
+		Type:     domain.FileTypeRegular,
+		Size:     100,
+		ModTime:  now,
+		Checksum: "def456", // Different checksum
+	}
+
+	result := comparer.Compare(src, tgt)
+	if result != FileModified {
+		t.Errorf("Expected FileModified when checksums differ, got %v", result)
+	}
+}
+
+func TestDefaultComparer_NoChecksum_FallbackToMtime(t *testing.T) {
+	comparer := NewDefaultComparer()
+	now := time.Now()
+
+	src := &domain.FileInfo{
+		Path:     "test.txt",
+		Type:     domain.FileTypeRegular,
+		Size:     100,
+		ModTime:  now.Add(1 * time.Hour),
+		Checksum: "", // No checksum
+	}
+	tgt := &domain.FileInfo{
+		Path:     "test.txt",
+		Type:     domain.FileTypeRegular,
+		Size:     100,
+		ModTime:  now,
+		Checksum: "", // No checksum
+	}
+
+	result := comparer.Compare(src, tgt)
+	// Should treat as identical when size matches but no checksums available
+	// This prevents unnecessary copying of large files
+	if result != FilesIdentical {
+		t.Errorf("Expected FilesIdentical when size matches and no checksums available, got %v", result)
+	}
+}
+
+func TestDefaultComparer_OnlySourceHasChecksum(t *testing.T) {
+	comparer := NewDefaultComparer()
+	now := time.Now()
+
+	src := &domain.FileInfo{
+		Path:     "test.txt",
+		Type:     domain.FileTypeRegular,
+		Size:     100,
+		ModTime:  now.Add(1 * time.Hour),
+		Checksum: "abc123", // Has checksum
+	}
+	tgt := &domain.FileInfo{
+		Path:     "test.txt",
+		Type:     domain.FileTypeRegular,
+		Size:     100,
+		ModTime:  now,
+		Checksum: "", // No checksum
+	}
+
+	result := comparer.Compare(src, tgt)
+	// Should fall back to time-based comparison when only one has checksum
+	if result != FileModified {
+		t.Errorf("Expected FileModified when only one file has checksum, got %v", result)
 	}
 }

@@ -105,7 +105,20 @@ func (a *Adapter) List(ctx context.Context, path string) ([]domain.FileInfo, err
 		}
 
 		entryPath := filepath.Join(path, entry.Name())
-		result = append(result, a.fileInfoFromOS(entryPath, info))
+		fileInfo := a.fileInfoFromOS(entryPath, info)
+
+		// Phase 3: Calculate checksum for regular files
+		// Only compute checksum for files <= 100MB to avoid performance issues
+		if fileInfo.IsFile() && fileInfo.Size <= 100*1024*1024 {
+			checksum, err := a.computeChecksum(ctx, entryPath)
+			if err == nil {
+				fileInfo.Checksum = checksum
+			}
+			// If checksum calculation fails, continue with empty checksum
+			// This allows the system to fall back to time-based comparison
+		}
+
+		result = append(result, fileInfo)
 	}
 
 	return result, nil
