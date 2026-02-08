@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Ning0612/Syncrules/internal/domain"
 )
@@ -21,6 +22,9 @@ type Config struct {
 
 	// Settings define global configuration options
 	Settings Settings `mapstructure:"settings"`
+
+	// Scheduler defines global scheduler configuration
+	Scheduler SchedulerConfig `mapstructure:"scheduler"`
 }
 
 // Settings contains global configuration options
@@ -39,6 +43,15 @@ type Settings struct {
 
 	// DryRun enables dry-run mode by default
 	DryRun bool `mapstructure:"dry_run"`
+}
+
+// SchedulerConfig contains scheduler configuration
+type SchedulerConfig struct {
+	// Enabled determines if scheduler is enabled globally
+	Enabled bool `mapstructure:"enabled"`
+
+	// DefaultInterval is the default sync interval (e.g., "5m", "1h")
+	DefaultInterval string `mapstructure:"default_interval"`
 }
 
 // Validate checks if the configuration is complete and consistent
@@ -103,6 +116,26 @@ func (c *Config) Validate() error {
 		ruleNames[r.Name] = true
 	}
 
+	// Validate scheduler configuration
+	if c.Scheduler.DefaultInterval != "" {
+		_, err := time.ParseDuration(c.Scheduler.DefaultInterval)
+		if err != nil {
+			return fmt.Errorf("%w: invalid scheduler.default_interval '%s': %v",
+				domain.ErrConfigInvalid, c.Scheduler.DefaultInterval, err)
+		}
+	}
+
+	// Validate rule-level schedule intervals
+	for _, rule := range c.Rules {
+		if rule.Schedule != nil && rule.Schedule.Interval != "" {
+			_, err := time.ParseDuration(rule.Schedule.Interval)
+			if err != nil {
+				return fmt.Errorf("%w: invalid schedule.interval '%s' for rule '%s': %v",
+					domain.ErrConfigInvalid, rule.Schedule.Interval, rule.Name, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -141,6 +174,28 @@ func (c *Config) GetEnabledRules() []domain.SyncRule {
 	var rules []domain.SyncRule
 	for _, r := range c.Rules {
 		if r.Enabled {
+			rules = append(rules, r)
+		}
+	}
+	return rules
+}
+
+// GetScheduledRules returns rules that should be included in scheduled syncs
+func (c *Config) GetScheduledRules() []domain.SyncRule {
+	var rules []domain.SyncRule
+	for _, r := range c.Rules {
+		// Rule must be enabled
+		if !r.Enabled {
+			continue
+		}
+
+		// If rule has schedule config, check if scheduling is enabled
+		if r.Schedule != nil {
+			if r.Schedule.Enabled {
+				rules = append(rules, r)
+			}
+		} else {
+			// No schedule config means include in scheduled syncs by default
 			rules = append(rules, r)
 		}
 	}

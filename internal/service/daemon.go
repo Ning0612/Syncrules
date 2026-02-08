@@ -67,32 +67,32 @@ func (d *DaemonService) Start(ctx context.Context, interval time.Duration) error
 		return fmt.Errorf("daemon is already running")
 	}
 
-	// Create sync runner that integrates with state manager
-	runner := &syncRunner{
-		config:   d.config,
-		syncSvc:  d.syncSvc,
-		stateMgr: d.stateMgr,
+	// Get scheduled rules (respects rule-level schedule configuration)
+	scheduledRules := d.config.GetScheduledRules()
+	var ruleNames []string
+	for _, rule := range scheduledRules {
+		ruleNames = append(ruleNames, rule.Name)
 	}
 
-	// Create interval scheduler
+	// Create scheduler config
 	schedConfig := scheduler.Config{
 		Mode:     "interval",
 		Interval: interval,
-		Rules:    []string{}, // Empty = all enabled rules
+		Rules:    ruleNames,
 	}
 
-	sched, err := scheduler.NewIntervalScheduler(schedConfig, runner)
+	// Create scheduler
+	sched, err := scheduler.NewIntervalScheduler(schedConfig, d.newSyncRunner())
 	if err != nil {
 		return fmt.Errorf("failed to create scheduler: %w", err)
 	}
-
-	d.scheduler = sched
 
 	// Start scheduler
 	if err := sched.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start scheduler: %w", err)
 	}
 
+	d.scheduler = sched
 	return nil
 }
 
@@ -166,6 +166,15 @@ func (d *DaemonService) Close() error {
 	return lastErr
 }
 
+// newSyncRunner creates a new sync runner
+func (d *DaemonService) newSyncRunner() *syncRunner {
+	return &syncRunner{
+		config:   d.config,
+		syncSvc:  d.syncSvc,
+		stateMgr: d.stateMgr,
+	}
+}
+
 // syncRunner implements scheduler.SyncRunner
 type syncRunner struct {
 	config   *config.Config
@@ -185,7 +194,7 @@ func (r *syncRunner) RunSync(ctx context.Context, ruleName string) error {
 		}
 		rules = []domain.SyncRule{*rule}
 	} else {
-		rules = r.config.GetEnabledRules()
+		rules = r.config.GetScheduledRules()
 	}
 
 	// Execute each rule and collect errors

@@ -22,6 +22,18 @@ type SyncRule struct {
 
 	// Enabled allows disabling rules without removing them
 	Enabled bool `mapstructure:"enabled"`
+
+	// Schedule defines rule-specific scheduling configuration
+	Schedule *ScheduleConfig `mapstructure:"schedule"`
+}
+
+// ScheduleConfig contains rule-level scheduling configuration
+type ScheduleConfig struct {
+	// Enabled determines if this rule should be included in scheduled syncs
+	Enabled bool `mapstructure:"enabled"`
+
+	// Interval overrides the global default interval for this rule (e.g., "10m", "2h")
+	Interval string `mapstructure:"interval"`
 }
 
 // Validate checks if the rule is properly configured
