@@ -1,0 +1,207 @@
+# Syncrules Configuration Example
+# This file demonstrates all available configuration options
+
+# ============================================================================
+# Scheduler Configuration (for daemon mode)
+# ============================================================================
+scheduler:
+  # Enable scheduled automatic syncs
+  enabled: true
+  
+  # Default interval for all rules (if not overridden)
+  # Valid formats: "30s", "5m", "1h", "2h30m", etc.
+  default_interval: "5m"
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+logging:
+  # Log level: "debug" | "info" | "warn" | "error"
+  # - Case-insensitive. "warning" is an alias for "warn".
+  # - Can be overridden by --log-level flag or SYNCRULES_LOG_LEVEL env var.
+  # Default: "info"
+  level: "info"
+  
+  # Output format: "text" | "json"
+  # - "json" is recommended for ingestion into log management systems (ELK, CloudWatch).
+  # - Can be overridden by --log-format flag or SYNCRULES_LOG_FORMAT env var.
+  # Default: "text"
+  format: "text"
+  
+  # File logging (optional)
+  # - Automatically applies PII sanitization to prevent sensitive data leakage
+  #   (passwords, tokens, API keys, and local/remote paths are masked).
+  file:
+    # Enable file logging
+    # Default: false
+    enabled: true
+    
+    # Log file path (supports ~ and environment variables)
+    # Default: ~/.config/syncrules/logs/syncrules.log
+    path: ~/.config/syncrules/logs/syncrules.log
+    
+    # Maximum size in MB before rotation
+    # Default: 100
+    max_size: 100
+    
+    # Maximum age in days to retain old log files (0 means retain all)
+    # Default: 30
+    max_age: 30
+    
+    # Maximum number of old log files to retain (0 means retain all)
+    # Default: 5
+    max_backups: 5
+    
+    # Compress rotated log files (Gzip)
+    # Default: false
+    compress: true
+  
+  # Daemon-specific logging
+  daemon:
+    # Enable separate daemon logging (useful for tracking background syncs)
+    # Default: false
+    enabled: true
+    
+    # Log level for daemon (can differ from main level)
+    # Default: same as main level
+    level: "info"
+    
+    # Daemon log file path
+    # Default: ~/.config/syncrules/logs/daemon.log
+    file_path: ~/.config/syncrules/logs/daemon.log
+
+# ============================================================================
+# Storage Transports
+# ============================================================================
+transports:
+  # Local filesystem transport
+  - name: local
+    type: filesystem
+
+  # Google Drive transport
+  - name: gdrive
+    type: googledrive
+    credentials_path: ~/.config/syncrules/gdrive-credentials.json
+
+# ============================================================================
+# Endpoints (Storage Locations)
+# ============================================================================
+endpoints:
+  # Local endpoints
+  - name: home-documents
+    transport: local
+    path: ~/Documents
+
+  - name: home-config
+    transport: local
+    path: ~/.config
+
+  - name: backup-drive
+    transport: local
+    path: /mnt/backup
+
+  # Google Drive endpoints
+  - name: gdrive-backup
+    transport: gdrive
+    path: /Backup
+
+  - name: gdrive-documents
+    transport: gdrive
+    path: /Documents
+
+# ============================================================================
+# Sync Rules
+# ============================================================================
+rules:
+  # Example 1: High-priority bidirectional sync with custom interval
+  - name: important-documents
+    enabled: true
+    mode: bidirectional
+    source: home-documents
+    target: gdrive-documents
+    conflict: newer
+    schedule:
+      enabled: true
+      interval: "10m"  # Override default, sync every 10 minutes
+    ignore:
+      - "*.tmp"
+      - ".DS_Store"
+      - "Thumbs.db"
+
+  # Example 2: Mirror backup with default interval
+  - name: config-backup
+    enabled: true
+    mode: mirror
+    source: home-config
+    target: gdrive-backup
+    # No schedule config = uses default interval (5m)
+    ignore:
+      - "*.log"
+      - "cache/*"
+      - "*.lock"
+
+  # Example 3: Less frequent sync for large files
+  - name: media-archive
+    enabled: true
+    mode: mirror
+    source: backup-drive
+    target: gdrive-backup
+    schedule:
+      enabled: true
+      interval: "6h"  # Sync every 6 hours
+    ignore:
+      - ".thumbnails/*"
+
+  # Example 4: Manual sync only (excluded from daemon)
+  - name: manual-transfer
+    enabled: true
+    mode: bidirectional
+    source: home-documents
+    target: backup-drive
+    schedule:
+      enabled: false  # Must be triggered manually
+    conflict: source-wins
+
+  # Example 5: Disabled rule
+  - name: archived-rule
+    enabled: false
+    mode: mirror
+    source: home-documents
+    target: gdrive-backup
+    # Disabled rules are never executed
+
+# ============================================================================
+# Global Settings
+# ============================================================================
+settings:
+  # Directory for file locks (prevents concurrent sync conflicts)
+  lock_path: ~/.config/syncrules/locks
+
+# ============================================================================
+# Configuration Notes
+# ============================================================================
+#
+# Sync Modes:
+#   - bidirectional: Two-way sync, changes propagate both ways
+#   - mirror: One-way sync, target becomes exact copy of source
+#
+# Conflict Strategies:
+#   - newer: Use the file with the most recent modification time
+#   - source-wins: Always prefer the source file
+#   - target-wins: Always prefer the target file
+#
+# Schedule Configuration:
+#   - If schedule.enabled = true: Include in daemon scheduled syncs
+#   - If schedule.enabled = false: Only manual syncs
+#   - If no schedule config: Use global scheduler settings (include if scheduler.enabled)
+#   - schedule.interval: Override default_interval for this specific rule
+#
+# Daemon Usage:
+#   syncrules daemon start --detach   # Start in background
+#   syncrules daemon status            # Check if running
+#   syncrules daemon stop              # Stop gracefully
+#
+# Manual Sync:
+#   syncrules sync                     # Run all enabled rules once
+#   syncrules sync --rule rulename     # Run specific rule
+#   syncrules sync --dry-run           # Preview without changes
