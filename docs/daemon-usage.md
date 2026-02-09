@@ -65,6 +65,42 @@ rules:
 
 ---
 
+## Logging
+
+Monitoring background syncs is critical. You can configure dedicated logging for the daemon.
+
+### Recommended Logging Config
+
+```yaml
+logging:
+  # Main application logs
+  level: "info"
+  format: "json"  # Recommended for easier parsing
+  file:
+    enabled: true
+    path: "~/.config/syncrules/logs/sync.log"
+  
+  # Dedicated daemon logs (optional)
+  daemon:
+    enabled: true
+    level: "info"
+    file_path: "~/.config/syncrules/logs/daemon.log"
+```
+
+### CLI Log Overrides
+
+When starting the daemon via CLI, you can override logging behavior:
+
+```bash
+# Debug problems by enabling debug logs for this run
+syncrules daemon start --log-level debug
+
+# Output ONLY to logs (quiet terminal)
+syncrules daemon start --log-file-only
+```
+
+---
+
 ## Starting the Daemon
 
 ### Foreground Mode (Testing)

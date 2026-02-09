@@ -30,6 +30,47 @@ scheduler:
 
 ---
 
+## Logging Configuration
+
+### Standard Text Logs
+
+Default setup for terminal output:
+
+```yaml
+logging:
+  level: "info"
+  format: "text"
+```
+
+### Production JSON Logs with Rotation
+
+Recommended for production or server environments:
+
+```yaml
+logging:
+  level: "info"
+  format: "json"
+  file:
+    enabled: true
+    path: "/var/log/syncrules/sync.log"
+    max_size: 50        # 50 MB
+    max_age: 14         # 2 weeks
+    max_backups: 10     # Keep 10 backups
+    compress: true      # Enable compression
+```
+
+### Debugging Mode
+
+Get detailed insights into sync decisions:
+
+```yaml
+logging:
+  level: "debug"
+  format: "text"
+```
+
+---
+
 ## Rule-Level Scheduling
 
 ### Example 1: Mixed Frequencies
@@ -130,6 +171,16 @@ rules:
 scheduler:
   enabled: true
   default_interval: "1h"
+
+# Logging settings
+logging:
+  level: "info"
+  format: "text"
+  file:
+    enabled: true
+    path: ~/.config/syncrules/logs/sync.log
+    max_size: 100
+    compress: true
 
 # Storage backends
 transports:

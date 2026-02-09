@@ -15,6 +15,7 @@ Syncrules 提供單一事實來源（Single Source of Truth），讓設定檔、
 - **安全同步** — 檔案鎖防止並行操作、原子寫入防止部分覆寫
 - **Dry-run 預覽** — 執行前預覽所有變更
 - **進度顯示** — 即時傳輸進度與速度
+- **安全日誌** — 結構化日誌輸出、PII 自動脫敏
 - **跨平台** — Windows / macOS / Linux
 
 ## 快速開始
@@ -129,6 +130,9 @@ syncrules version            # 顯示版本
 | `--dry-run` | 預覽模式 |
 | `--output, -o` | 輸出格式（table/json） |
 | `--progress, -p` | 顯示進度 |
+| `--log-level` | 日誌層級（debug/info/warn/error） |
+| `--log-format` | 日誌格式（text/json） |
+| `--log-file-only` | 僅輸出到日誌檔案 |
 
 ### 排程守護程序
 

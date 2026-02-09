@@ -43,6 +43,9 @@ syncrules sync [flags]
 | `--dry-run` | | `false` | 預覽模式，不實際執行 |
 | `--output` | `-o` | `table` | 輸出格式：`table` 或 `json` |
 | `--progress` | `-p` | `false` | 顯示傳輸進度（僅在非 dry-run 且有檔案複製時生效） |
+| `--log-level` | | `info` | 日誌層級：`debug`, `info`, `warn`, `error`（不區分大小寫） |
+| `--log-format` | | `text` | 日誌格式：`text` 或 `json` |
+| `--log-file-only`| | `false` | 僅輸出到日誌檔案，不輸出到終端 |
 
 ### 使用範例
 
@@ -222,6 +225,18 @@ rules:
       - ".cache/"
     conflict: keep_local | keep_remote | keep_newest | manual  # 預設 manual
     enabled: true | false   # 預設 true
+
+# Logging — 定義日誌配置（選用）
+logging:
+  level: "info"          # debug | info | warn | "error"
+  format: "text"         # text | json
+  file:
+    enabled: true        # 啟用檔案日誌
+    path: "path/to.log"  # 日誌檔案路徑
+    max_size: 100        # 單個檔案最大 MB
+    max_age: 30          # 保留天數
+    max_backups: 5       # 保留備份數量
+    compress: true       # 壓縮舊日誌
 ```
 
 ### 概念階層
@@ -232,6 +247,49 @@ Transport（儲存後端類型）
         └── Rule（同步關係）
               ├── Source Endpoint
               └── Target Endpoint
+```
+
+---
+
+## 日誌配置
+
+Syncrules 提供結構化日誌（Structured Logging）功能，支援多個輸出目標與 PII 自動脫敏。
+
+### 配置參數
+
+| 參數 | 預設值 | 說明 |
+|------|--------|------|
+| `level` | `info` | 日誌層級（`debug`, `info`, `warn`, `error`）。不區分大小寫，`warning` 為 `warn` 的別名。 |
+| `format` | `text` | 輸出格式（`text` 或 `json`）。JSON 格式適合 ELK 或 CloudWatch 等監控系統。 |
+| `file.enabled` | `false` | 是否將日誌寫入檔案。 |
+| `file.path` | （自動） | 日誌路徑。支援 `~` 與環境變數。預設：`~/.config/syncrules/logs/syncrules.log`。 |
+| `file.max_size` | `100` | 日誌檔案輪轉前的最大大小（MB）。 |
+| `file.max_age` | `30` | 舊日誌保留天數。`0` 表示無限期保留。 |
+| `file.max_backups` | `5` | 保留的舊日誌備份數量。`0` 表示無限期保留。 |
+| `file.compress` | `false` | 是否使用 Gzip 壓縮輪轉後的舊日誌。 |
+
+### PII 自動脫敏
+
+Syncrules 會自動識別並遮蔽日誌中的敏感資訊，包括：
+- 密碼（`pwd=...`）
+- 認證 Token（`token=...`, `bearer ...`）
+- API Key（`api_key=...`）
+- Windows 路徑中的使用者名稱（例如 `C:\Users\***\Documents`）
+- UNC 路徑中的伺服器與共享名稱
+- Email 地址
+
+> **限制說明**：僅對結構化參數中的「敏感 Key」（如 `password`, `token`）對應的 Value，或符合正則表達式的內容進行遮蔽。請避免將敏感資訊直接放入非敏感 Key 的 Value 中。
+
+### 守護程序日誌 (Daemon Logging)
+
+在 `logging.daemon` 下可以獨立設定守護程序的日誌，這對於追蹤背景同步任務非常有用：
+
+```yaml
+logging:
+  daemon:
+    enabled: true
+    level: "info"
+    file_path: "~/.config/syncrules/logs/daemon.log"
 ```
 
 ---
